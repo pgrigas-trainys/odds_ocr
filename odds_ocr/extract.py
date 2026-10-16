@@ -45,6 +45,9 @@ are common ("3,50" = 3.5).
 - Head-start handicap style: both teams shown with a plus, one usually "+ 0", e.g. left \
 "Zalgiris + 0  1.55", right "Anadolu Efes + 3,50  2.47" on one row. Each row is one line: \
 left price = home, right = away; home line = home_value - away_value (here -3.5).
+- Over/under buttons can be in EITHER order; Lithuanian sites often put "Mažiau" (under) on \
+the left and "Daugiau" (over) on the right. Assign by the word, never by position. As the \
+line rises, the OVER price rises.
 - Only full-game lines. Skip quarters, halves, periods, 1X2/moneyline, player props and any \
 market that is not one of the four above.
 - One row per line; each row needs both odds. Skip a line if either price is unreadable \

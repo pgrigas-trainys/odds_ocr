@@ -155,6 +155,7 @@ Vocabulary you will see:
 - whole-game total: "Taškų suma", "Bendra taškų suma", "Iš viso taškų", "Viso", "Totalas", "Total", "Total points", "Daugiau/Mažiau", "Over/Under", "O/U" (with or without "incl. overtime" / "įskaitant pratęsimą"). A total line may be printed once in a column or header with the two prices next to it, or inside each price button (e.g. "Daugiau 165.5  1.87").
 - team total: the same words together with a team name, e.g. "Fenerbahce taškų suma", "Komandos taškai", "Team total".
 - If a screenshot only shows over/under prices with no team name next to the market, treat it as the whole-game total (tot).
+- Over/under buttons can be in EITHER order. Many Lithuanian sites put "Mažiau" (under) on the LEFT and "Daugiau" (over) on the RIGHT, e.g. "Mažiau 163,50  2.42 | Daugiau 163,50  1.57" is line 163.5, a = 1.57 (over), b = 2.42 (under). Always assign by the word, never by position. Sanity check: as the line rises, the OVER price rises.
 - "Team name + number" pairs with no over/under words are a HANDICAP (hcp), not a total. Decimal commas are common ("3,50" = 3.5).
 - Head-start handicap style: both teams are shown with a plus, one of them usually "+ 0", e.g. left button "Žalgiris + 0  1.55", right button "Anadolu Efes + 3,50  2.47" on the same row. Each row is one line: left price = home, right price = away. The home line is home_value − away_value, so this row is line -3.5, a = 1.55, b = 2.47. ("Home + 4,50" vs "Away + 0" would be line +4.5.)
 
@@ -220,6 +221,26 @@ function addRows(raw, src) {
   return { added, warns };
 }
 const sorted = key => state.rows.filter(r => r.market === key).sort((x, y) => x.line - y.line);
+
+// A (namai / daugiau) turi kristi kylant handikapo linijai ir kilti kylant sumos linijai.
+// Jei vienoje nuotraukoje visos poros sukeistos, sukeičiame atgal.
+function fixSwapped(raw) {
+  const warns = [];
+  for (const m of MKEYS) {
+    const rs = (raw || []).filter(r => String(r.market).toLowerCase() === m)
+      .map(r => ({ r, line: num(r.line), a: num(r.a ?? r.odds_a), b: num(r.b ?? r.odds_b) }))
+      .filter(x => [x.line, x.a, x.b].every(Number.isFinite)).sort((x, y) => x.line - y.line);
+    if (rs.length < 3) continue;
+    let up = 0, down = 0;
+    for (let i = 1; i < rs.length; i++) { const d = rs[i].a - rs[i - 1].a; if (d > 0) up++; else if (d < 0) down++; }
+    const wrong = m === "hcp" ? up > down && down === 0 : down > up && up === 0;
+    if (wrong) {
+      for (const x of rs) { x.r.a = x.b; x.r.b = x.a; delete x.r.odds_a; delete x.r.odds_b; }
+      warns.push(`${MARKETS.find(k => k.key === m).title}: koeficientai buvo sukeisti vietomis, sutvarkyta`);
+    }
+  }
+  return warns;
+}
 
 // ---------- CSV ----------
 const q = s => /[",\n]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : String(s);
@@ -323,8 +344,9 @@ async function readAll() {
       const res = await sample.json(PROMPT(state.home, state.away), { images: [im.file], signal: ctl.signal });
       if (!res || !Array.isArray(res.rows)) throw { code: "invalid_json" };
       for (const k of ["home", "away", "bookmaker"]) if (!state[k] && res[k]) { state[k] = String(res[k]).trim(); $(k).value = state[k]; }
+      const swapWarns = fixSwapped(res.rows);
       const { added, warns } = addRows(res.rows, im.file.name);
-      total += added; allWarns.push(...warns);
+      total += added; allWarns.push(...swapWarns, ...warns);
       im.status = added ? `${added} eil.` + (res.notes ? ` · ${res.notes}` : "") : (res.notes || "Koeficientų nerasta");
       im.cls = added ? "ok" : "err";
       renderBoard(); save();
