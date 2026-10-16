@@ -40,6 +40,11 @@ odds_b = UNDER.
 
 Rules:
 - The home team is the one listed first in the event name ("A vs B", "A - B": A is home).
+- "Team name + number" pairs with no over/under words are a HANDICAP (hcp). Decimal commas \
+are common ("3,50" = 3.5).
+- Head-start handicap style: both teams shown with a plus, one usually "+ 0", e.g. left \
+"Zalgiris + 0  1.55", right "Anadolu Efes + 3,50  2.47" on one row. Each row is one line: \
+left price = home, right = away; home line = home_value - away_value (here -3.5).
 - Only full-game lines. Skip quarters, halves, periods, 1X2/moneyline, player props and any \
 market that is not one of the four above.
 - One row per line; each row needs both odds. Skip a line if either price is unreadable \
