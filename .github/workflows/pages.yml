@@ -1,0 +1,44 @@
+name: Publikuoti programėlę
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Surinkti puslapį
+        # app/index.html rašomas be <html>/<head> (taip jį skelbia Claude), todėl čia apgaubiame.
+        run: |
+          mkdir -p _site
+          {
+            printf '<!doctype html><html lang="lt"><head><meta charset="utf-8">'
+            printf '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+            printf '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%%}[hidden]{display:none!important}</style>'
+            printf '</head><body>\n'
+            cat app/index.html
+            printf '\n</body></html>\n'
+          } > _site/index.html
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

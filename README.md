@@ -6,7 +6,12 @@ CSV formatas tinka projektui [event_probability](https://github.com/pgrigas-trai
 
 ## Programėlė
 
-`app/index.html` yra naršyklės programėlė. Joje įkeli ekranvaizdžius (nutempdamas, įklijuodamas Ctrl+V arba pasirinkdamas telefone), Claude nuskaito koeficientus, gautą lentelę gali pataisyti ir atsisiųsti CSV. Programėlė veikia kaip Claude artifact puslapis ir naudoja tavo Claude paskyrą, todėl API rakto nereikia. Jei Claude nepasiekiamas, koeficientus galima suvesti ranka.
+`app/index.html` yra naršyklės programėlė. Joje įkeli ekranvaizdžius (nutempdamas, įklijuodamas Ctrl+V arba pasirinkdamas telefone), Claude nuskaito koeficientus, gautą lentelę gali pataisyti ir atsisiųsti CSV. Programėlę galima atidaryti dviem būdais:
+
+- **Per Claude** (artifact nuoroda): nuotraukas skaito tavo Claude paskyra, API rakto nereikia.
+- **GitHub Pages:** https://pgrigas-trainys.github.io/odds_ocr/ — čia nuotraukoms nuskaityti reikia Anthropic API rakto (įvedamas puslapyje, saugomas tik naršyklėje, API apmokestinama atskirai). Be rakto koeficientus galima suvesti ranka.
+
+Puslapis į GitHub Pages publikuojamas automatiškai po kiekvieno push į `main` (`.github/workflows/pages.yml`).
 
 ## Komandinė eilutė (Python)
 

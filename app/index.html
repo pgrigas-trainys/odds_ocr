@@ -52,6 +52,9 @@ input:focus-visible, button:focus-visible, select:focus-visible, .drop:focus-vis
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 .note.warn { color: var(--warn); }
 .note.err { color: var(--bad); }
+.keybox { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+.keybox[hidden] { display: none; }
+a { color: var(--accent); }
 
 button { font: 600 14px var(--body); border-radius: 7px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -74,7 +77,7 @@ tr.bad td.m { color: var(--bad); }
 td.src { font-size: 12px; color: var(--muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 td.del { width: 32px; text-align: right; }
 td.del button { border: 0; background: none; color: var(--muted); padding: 4px 6px; font-size: 16px; }
-@media (max-width: 560px) { td.src, th.src { display: none; } td input.num { width: 76px; } }
+@media (max-width: 560px) { td.src, th.src { display: none; } td input.num { width: 64px; padding: 6px; } td, th { padding-left: 4px; padding-right: 4px; } }
 .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
 .sample-tag { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .07em; background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 2px 6px; }
 
@@ -115,6 +118,12 @@ details pre { background: var(--bg); border: 1px solid var(--line); border-radiu
       <button class="primary" id="read" disabled>Nuskaityti</button>
       <button id="stop" hidden>Sustabdyti</button>
       <p class="note" id="readNote"></p>
+    </div>
+    <div class="keybox" id="keybox" hidden>
+      <label class="f">Anthropic API raktas
+        <input type="password" id="apikey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+      </label>
+      <p class="note">Šis puslapis atidarytas ne per Claude, todėl nuotraukoms nuskaityti reikia API rakto. Jį gausite <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. API naudojimas apmokestinamas atskirai nuo Claude plano, maždaug keli centai už nuotrauką. Raktas saugomas tik šioje naršyklėje. Be rakto koeficientus galite įvesti ranka.</p>
     </div>
   </section>
 
@@ -184,7 +193,49 @@ const $ = id => document.getElementById(id);
 let uid = 0;
 const state = { home: "", away: "", bookmaker: "", rows: [], example: false };
 const images = []; // {id, file, url, status, cls}
-let sample = null, downloads = null, ctl = null, busy = false;
+let sample = null, downloads = null, ctl = null, busy = false, inClaude = false;
+const KEYSTORE = "odds-scanner-key", API_MODEL = "claude-sonnet-5-5";
+let apiKey = "";
+try { apiKey = localStorage.getItem(KEYSTORE) || ""; } catch (e) {}
+const canRead = () => !!sample || (!inClaude && !!apiKey);
+
+// ---------- Anthropic API (kai puslapis atidarytas ne per Claude, pvz. GitHub Pages) ----------
+async function prepImage(file) {
+  // API riba ~5 MB; dideles nuotraukas sumažiname iki 2000 px ilgesnės kraštinės.
+  if (file.size < 3.5e6) return file;
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+  const cv = Object.assign(document.createElement("canvas"), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+  return await new Promise(res => cv.toBlob(res, "image/jpeg", 0.9));
+}
+const toB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(blob); });
+function parseJSON(text) {
+  try { return JSON.parse(text); } catch (e) {}
+  const m = text.match(/```(?:json)?\s*([\s\S]*?)```/); if (m) { try { return JSON.parse(m[1]); } catch (e) {} }
+  const i = text.indexOf("{"), j = text.lastIndexOf("}");
+  if (i >= 0 && j > i) { try { return JSON.parse(text.slice(i, j + 1)); } catch (e) {} }
+  throw { code: "invalid_json" };
+}
+async function apiRead(file, prompt, signal) {
+  const img = await prepImage(file);
+  let resp;
+  try {
+    resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", signal,
+      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: API_MODEL, max_tokens: 4096, messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: img.type || "image/jpeg", data: await toB64(img) } },
+        { type: "text", text: prompt } ] }] }),
+    });
+  } catch (e) { throw { code: e?.name === "AbortError" ? "cancelled" : "network" }; }
+  if (resp.status === 401 || resp.status === 403) throw { code: "bad_key" };
+  if (resp.status === 429) throw { code: "rate_limited" };
+  if (resp.status === 400) { const t = await resp.text(); throw { code: /credit|billing/i.test(t) ? "no_credit" : "image_rejected" }; }
+  if (!resp.ok) throw { code: "upstream_error" };
+  const data = await resp.json();
+  return parseJSON((data.content || []).filter(b => b.type === "text").map(b => b.text).join(""));
+}
 
 // ---------- state ----------
 function load() {
@@ -287,7 +338,7 @@ function renderThumbs() {
   $("thumbs").innerHTML = images.map(im => `<div class="thumb"><img src="${im.url}" alt="${esc(im.file.name)}">
     <span class="st ${im.cls || ""}">${esc(im.status)}</span>
     <button class="x" data-rm="${im.id}" aria-label="Pašalinti nuotrauką" ${busy ? "disabled" : ""}>×</button></div>`).join("");
-  $("read").disabled = busy || !sample || !images.some(i => i.cls !== "ok");
+  $("read").disabled = busy || !canRead() || !images.some(i => i.cls !== "ok");
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function note(text, cls = "") { $("readNote").textContent = text; $("readNote").className = "note " + cls; }
@@ -297,7 +348,8 @@ function addFiles(files) {
   const ok = [...files].filter(f => /^image\/(jpeg|png|webp|gif)$/.test(f.type));
   if (!ok.length) { if (files.length) note("Tinka tik JPG, PNG, WEBP ar GIF nuotraukos. iPhone HEIC pirma konvertuokite.", "err"); return; }
   for (const f of ok) images.push({ id: ++uid, file: f, url: URL.createObjectURL(f), status: "Laukia", cls: "" });
-  note(sample ? "" : "Claude čia nepasiekiamas, todėl koeficientus įveskite ranka.", sample ? "" : "warn");
+  if (canRead()) note("");
+  else note(inClaude ? "Claude nuotraukų čia skaityti negali, todėl koeficientus įveskite ranka." : "Įveskite API raktą žemiau arba koeficientus suveskite ranka.", "warn");
   renderThumbs();
 }
 $("drop").addEventListener("click", () => $("file").click());
@@ -326,11 +378,14 @@ const ERR = {
   invalid_json: "Nepavyko atpažinti atsakymo. Bandykite dar kartą.",
   refused: "Claude atsisakė skaityti šią nuotrauką.",
   session_expired: "Prisijunkite iš naujo.",
+  bad_key: "API raktas netinka. Patikrinkite jį.",
+  no_credit: "API paskyroje nėra kredito. Papildykite ją console.anthropic.com.",
+  network: "Nėra ryšio su Anthropic API. Patikrinkite internetą.",
 };
 const FATAL = ["not_granted", "sampling_disabled", "images_unavailable", "not_declared", "capability_disabled", "capability_removed"];
 
 async function readAll() {
-  if (busy || !sample) return;
+  if (busy || !canRead()) return;
   const todo = images.filter(i => i.cls !== "ok");
   if (!todo.length) return;
   busy = true; $("stop").hidden = false; note("");
@@ -341,7 +396,9 @@ async function readAll() {
     im.status = "Skaitoma…"; im.cls = "busy"; renderThumbs();
     ctl = new AbortController();
     try {
-      const res = await sample.json(PROMPT(state.home, state.away), { images: [im.file], signal: ctl.signal });
+      const prompt = PROMPT(state.home, state.away);
+      const res = sample ? await sample.json(prompt, { images: [im.file], signal: ctl.signal })
+                         : await apiRead(im.file, prompt, ctl.signal);
       if (!res || !Array.isArray(res.rows)) throw { code: "invalid_json" };
       for (const k of ["home", "away", "bookmaker"]) if (!state[k] && res[k]) { state[k] = String(res[k]).trim(); $(k).value = state[k]; }
       const swapWarns = fixSwapped(res.rows);
@@ -353,6 +410,7 @@ async function readAll() {
     } catch (e) {
       if (e && e.code === "cancelled") { im.status = "Sustabdyta"; im.cls = ""; break; }
       im.status = ERR[e?.code] || "Nepavyko. Bandykite dar kartą."; im.cls = "err";
+      if (["bad_key", "no_credit"].includes(e?.code)) { note(im.status, "err"); break; }
       if (FATAL.includes(e?.code)) { note(im.status, "err"); if (e.code !== "rate_limited") sample = null; break; }
       if (e?.code === "rate_limited") { note(im.status, "warn"); break; }
     } finally { renderThumbs(); }
@@ -402,7 +460,12 @@ $("copy").addEventListener("click", () => {
   });
 });
 $("save").addEventListener("click", async () => {
-  if (!downloads) { $("copy").click(); return; }
+  if (!downloads) {
+    if (inClaude) { $("copy").click(); return; }
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csvText()], { type: "text/csv" })), download: fileName() + ".csv" });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    return;
+  }
   try { await downloads.save({ filename: fileName() + ".csv", data: csvText() }); flash("save", "Išsaugota"); }
   catch (e) { if (e?.code !== "declined") note("Atsisiųsti nepavyko. Naudokite „Kopijuoti CSV“.", "warn"); }
 });
@@ -414,7 +477,17 @@ for (const k of ["home", "away", "bookmaker"]) $(k).value = state[k] || "";
 renderBoard(); renderThumbs();
 (async () => {
   const c = window.claude;
-  if (!c?.use) { note("Claude čia nepasiekiamas, todėl koeficientus įveskite ranka.", "warn"); return; }
+  if (!c?.use) {
+    $("keybox").hidden = false; $("apikey").value = apiKey;
+    $("apikey").addEventListener("input", e => {
+      apiKey = e.target.value.trim();
+      try { apiKey ? localStorage.setItem(KEYSTORE, apiKey) : localStorage.removeItem(KEYSTORE); } catch (err) {}
+      renderThumbs();
+    });
+    renderThumbs();
+    return;
+  }
+  inClaude = true;
   const [s, d] = await Promise.all([c.use("sample").catch(() => null), c.use("downloads").catch(() => null)]);
   downloads = d;
   if (s) {
