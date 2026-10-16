@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "odds-ocr"
+version = "0.1.0"
+description = "Bukmekerių koeficientų nuotraukos -> CSV (per Claude API)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["anthropic>=0.40"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+odds-ocr = "odds_ocr.cli:main"
+
+[tool.setuptools]
+packages = ["odds_ocr"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
