@@ -1,0 +1,396 @@
+<title>Koeficientų skeneris</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one working column — match details, photo tray, then the odds board grouped by market, export bar pinned at the bottom */
+:root {
+  --bg: #eef2ee; --surface: #ffffff; --ink: #14201a; --muted: #5d6b63; --line: #d5ddd7;
+  --accent: #0d6b45; --accent-ink: #ffffff; --accent-soft: #dcefe4;
+  --warn: #9a5a00; --warn-soft: #fbecd2; --bad: #b3261e; --bad-soft: #fbe1de;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1411; --surface: #161e1a; --ink: #e4ece7; --muted: #93a39a; --line: #2a3530;
+  --accent: #3fbf84; --accent-ink: #06130d; --accent-soft: #173a2a;
+  --warn: #f0b354; --warn-soft: #3a2a10; --bad: #ff8a80; --bad-soft: #3d1a17; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1411; --surface: #161e1a; --ink: #e4ece7; --muted: #93a39a; --line: #2a3530;
+  --accent: #3fbf84; --accent-ink: #06130d; --accent-soft: #173a2a;
+  --warn: #f0b354; --warn-soft: #3a2a10; --bad: #ff8a80; --bad-soft: #3d1a17; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 20px 110px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px; }
+h1, h2 { font-family: var(--display); font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 34px; line-height: 1.05; }
+h2 { font-size: 21px; text-transform: uppercase; letter-spacing: .04em; }
+.lede { color: var(--muted); margin: 4px 0 0; max-width: 62ch; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+label.f { display: grid; gap: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+input[type=text], input.num { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; min-width: 0; text-transform: none; letter-spacing: 0; }
+input:focus-visible, button:focus-visible, select:focus-visible, .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.match { display: grid; grid-template-columns: 1fr auto 1fr 1fr; gap: 10px; align-items: end; }
+.vs { font-family: var(--display); font-size: 20px; color: var(--muted); padding-bottom: 6px; }
+@media (max-width: 560px) { .match { grid-template-columns: 1fr 1fr; } .vs { display: none; } .match .bk { grid-column: 1 / -1; } }
+
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; cursor: pointer; color: var(--muted); display: grid; gap: 6px; justify-items: center; transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop b { color: var(--ink); }
+.drop input { display: none; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 10px; }
+.thumb { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg); display: grid; }
+.thumb img { width: 100%; height: 86px; object-fit: cover; display: block; }
+.thumb .st { font-size: 12px; padding: 5px 7px; line-height: 1.3; overflow-wrap: anywhere; }
+.thumb .st.ok { color: var(--accent); } .thumb .st.err { color: var(--bad); } .thumb .st.busy { color: var(--warn); }
+.thumb .x { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; cursor: pointer; font-size: 14px; line-height: 1; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.note.warn { color: var(--warn); }
+.note.err { color: var(--bad); }
+
+button { font: 600 14px var(--body); border-radius: 7px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.ghost { background: transparent; border-color: transparent; color: var(--accent); padding: 6px 8px; }
+
+.board { display: grid; gap: 14px; }
+.mk { display: grid; gap: 6px; min-width: 0; }
+.mk-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.mk-head .cnt { font: 500 12px var(--mono); color: var(--muted); }
+.mk-head .ghost { margin-left: auto; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); text-align: left; font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td input.num { font: 500 15px var(--mono); padding: 6px 8px; width: 92px; }
+td.m { font: 500 13px var(--mono); color: var(--muted); white-space: nowrap; }
+tr.flag td.m { color: var(--warn); }
+tr.bad td.m { color: var(--bad); }
+td.src { font-size: 12px; color: var(--muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+td.del { width: 32px; text-align: right; }
+td.del button { border: 0; background: none; color: var(--muted); padding: 4px 6px; font-size: 16px; }
+@media (max-width: 560px) { td.src, th.src { display: none; } td input.num { width: 76px; } }
+.empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+.sample-tag { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .07em; background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 2px 6px; }
+
+.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+  padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar .in { max-width: 860px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.bar .sum { font: 500 13px var(--mono); color: var(--muted); margin-right: auto; }
+details { font-size: 13px; }
+details pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; font: 12px/1.5 var(--mono); margin: 8px 0 0; max-height: 260px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<main class="wrap">
+  <header>
+    <h1>Koeficientų skeneris</h1>
+    <p class="lede">Įkelkite bukmekerio ekranvaizdžius. Claude nuskaitys handikapo, taškų sumos ir komandų taškų linijas. Patikrinkite lentelę ir atsisiųskite CSV.</p>
+  </header>
+
+  <section class="card" aria-label="Rungtynės">
+    <div class="match">
+      <label class="f">Namai <input type="text" id="home" placeholder="pvz. Fenerbahce" autocomplete="off"></label>
+      <span class="vs">prieš</span>
+      <label class="f">Svečiai <input type="text" id="away" placeholder="pvz. Partizan" autocomplete="off"></label>
+      <label class="f bk">Bukmekeris <input type="text" id="bookmaker" placeholder="nebūtina" autocomplete="off"></label>
+    </div>
+    <p class="note">Jei laukai tušti, komandas ir bukmekerį Claude paims iš nuotraukos.</p>
+  </section>
+
+  <section class="card" aria-label="Nuotraukos">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Pridėti nuotraukas">
+      <b>Pridėkite nuotraukas</b>
+      <span>Nutempkite failus, įklijuokite (Ctrl+V) arba bakstelėkite ir pasirinkite. JPG, PNG, WEBP.</span>
+      <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="row">
+      <button class="primary" id="read" disabled>Nuskaityti</button>
+      <button id="stop" hidden>Sustabdyti</button>
+      <p class="note" id="readNote"></p>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Koeficientai">
+    <div class="row"><h2>Koeficientai</h2><span class="sample-tag" id="sampleTag" hidden>Pavyzdys</span></div>
+    <div class="board" id="board"></div>
+    <details>
+      <summary>CSV peržiūra</summary>
+      <pre id="preview"></pre>
+    </details>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="in">
+    <span class="sum" id="sum"></span>
+    <button id="clear">Išvalyti</button>
+    <button id="copy">Kopijuoti CSV</button>
+    <button class="primary" id="save">Atsisiųsti CSV</button>
+  </div>
+</div>
+
+<script>
+const MARKETS = [
+  { key: "hcp", title: "Handikapas", line: "Namų hcp", a: "Namai", b: "Svečiai" },
+  { key: "tot", title: "Taškų suma", line: "Linija", a: "Daugiau", b: "Mažiau" },
+  { key: "home", title: "Namų komandos taškai", line: "Linija", a: "Daugiau", b: "Mažiau" },
+  { key: "away", title: "Svečių komandos taškai", line: "Linija", a: "Daugiau", b: "Mažiau" },
+];
+const MKEYS = MARKETS.map(m => m.key);
+const STORE = "odds-scanner-v1";
+
+const PROMPT = (home, away) => `You read decimal betting odds from a bookmaker screenshot (often Lithuanian: "Daugiau" = over, "Mažiau" = under, "Handikapas"/"Fora" = handicap). Never guess: only record numbers you can actually read.
+
+Markets (use these keys):
+- hcp: HANDICAP / point spread for the whole game. line = the HOME (first-listed) team's handicap exactly as shown (e.g. -11.5); a = odds for the home team with that handicap; b = odds for the away team with the opposite handicap.
+- tot: TOTAL POINTS over/under for the whole game. line = total (e.g. 165.5); a = OVER; b = UNDER.
+- home: the HOME team's own points over/under. line e.g. 88.5; a = OVER; b = UNDER.
+- away: the AWAY team's own points over/under. line e.g. 77.5; a = OVER; b = UNDER.
+
+Rules:
+- The home team is the one listed first ("A vs B", "A - B": A is home).${home || away ? `\n- The match is ${home || "?"} (home) vs ${away || "?"} (away).` : ""}
+- Only full-game lines. Skip quarters, halves, 1X2/moneyline, player props and every other market.
+- One row per line, both prices required. Skip suspended or unreadable lines.
+- Odds are decimal; convert fractional or American odds to decimal. Use a dot as decimal separator.
+
+Reply with only this JSON object, no other text:
+{"bookmaker":"","home":"","away":"","rows":[{"market":"hcp","line":-11.5,"a":1.85,"b":1.95}],"notes":""}
+"notes" = one short sentence about anything unclear or skipped, or "".`;
+
+const EXAMPLE = [
+  ["hcp", -14.5, 2.45, 1.50], ["hcp", -12.5, 2.15, 1.70], ["hcp", -10.5, 1.80, 2.00],
+  ["tot", 160.5, 1.60, 2.30], ["tot", 165.5, 1.87, 1.87], ["tot", 170.5, 2.20, 1.65],
+];
+
+const $ = id => document.getElementById(id);
+let uid = 0;
+const state = { home: "", away: "", bookmaker: "", rows: [], example: false };
+const images = []; // {id, file, url, status, cls}
+let sample = null, downloads = null, ctl = null, busy = false;
+
+// ---------- state ----------
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE) || "null");
+    if (s && Array.isArray(s.rows)) { Object.assign(state, s); state.rows.forEach(r => r.id = ++uid); return; }
+  } catch (e) {}
+  state.example = true; state.home = ""; state.away = "";
+  state.rows = EXAMPLE.map(([market, line, a, b]) => ({ id: ++uid, market, line, a, b, src: "pavyzdys" }));
+}
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify({ ...state, rows: state.rows.map(({ id, ...r }) => r) })); } catch (e) {}
+}
+const num = v => { const n = Number(String(v ?? "").trim().replace(",", ".")); return String(v ?? "").trim() === "" ? NaN : n; };
+const margin = r => (r.a > 1 && r.b > 1) ? 1 / r.a + 1 / r.b - 1 : NaN;
+const fmtLine = x => Number.isFinite(x) ? String(+x.toFixed(2)) : "";
+const fmtOdd = x => Number.isFinite(x) ? x.toFixed(2) : "";
+
+function addRows(raw, src) {
+  let added = 0; const warns = [];
+  for (const r of raw || []) {
+    const market = String(r.market || "").trim().toLowerCase();
+    const line = num(r.line), a = num(r.a ?? r.odds_a), b = num(r.b ?? r.odds_b);
+    if (!MKEYS.includes(market) || ![line, a, b].every(Number.isFinite)) continue;
+    if (a <= 1 || b <= 1) { warns.push(`${market} ${line}: koeficientas ≤ 1`); continue; }
+    const same = state.rows.find(x => x.market === market && x.line === line);
+    if (same) {
+      if (Math.abs(same.a - a) > 1e-9 || Math.abs(same.b - b) > 1e-9) warns.push(`${market} ${fmtLine(line)}: skirtingi koeficientai, paliktas pirmas`);
+      continue;
+    }
+    state.rows.push({ id: ++uid, market, line, a: Math.round(a * 1000) / 1000, b: Math.round(b * 1000) / 1000, src });
+    added++;
+  }
+  return { added, warns };
+}
+const sorted = key => state.rows.filter(r => r.market === key).sort((x, y) => x.line - y.line);
+
+// ---------- CSV ----------
+const q = s => /[",\n]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : String(s);
+function csvText() {
+  const out = ["market,line,odds_a,odds_b,bookmaker,home,away,image"];
+  for (const m of MKEYS) for (const r of sorted(m)) {
+    if (!(Number.isFinite(r.line) && r.a > 1 && r.b > 1)) continue;
+    out.push([m, fmtLine(r.line), fmtOdd(r.a), fmtOdd(r.b), state.bookmaker, state.home, state.away, r.src || ""].map(q).join(","));
+  }
+  return out.join("\n") + "\n";
+}
+const slug = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+const fileName = () => [slug(state.home), slug(state.away)].filter(Boolean).join("_") || "koeficientai";
+
+// ---------- render ----------
+function renderBoard() {
+  $("sampleTag").hidden = !state.example;
+  $("board").innerHTML = MARKETS.map(m => {
+    const rows = sorted(m.key);
+    const body = rows.length ? `<div class="tbl"><table>
+      <thead><tr><th>${m.line}</th><th>${m.a}</th><th>${m.b}</th><th>Marža</th><th class="src">Šaltinis</th><th></th></tr></thead>
+      <tbody>${rows.map(r => {
+        const mg = margin(r), cls = !Number.isFinite(mg) ? "bad" : (mg < -0.02 || mg > 0.25 ? "flag" : "");
+        return `<tr data-id="${r.id}" class="${cls}">
+          <td><input class="num" inputmode="decimal" id="l-${r.id}" data-f="line" value="${fmtLine(r.line)}" aria-label="${m.line}"></td>
+          <td><input class="num" inputmode="decimal" id="a-${r.id}" data-f="a" value="${fmtOdd(r.a)}" aria-label="${m.a}"></td>
+          <td><input class="num" inputmode="decimal" id="b-${r.id}" data-f="b" value="${fmtOdd(r.b)}" aria-label="${m.b}"></td>
+          <td class="m">${Number.isFinite(mg) ? (mg * 100).toFixed(1) + "%" : "—"}</td>
+          <td class="src" title="${esc(r.src || "")}">${esc(r.src || "ranka")}</td>
+          <td class="del"><button data-del="${r.id}" aria-label="Ištrinti eilutę">×</button></td></tr>`;
+      }).join("")}</tbody></table></div>` : `<div class="empty">Nėra eilučių.</div>`;
+    return `<div class="mk"><div class="mk-head"><h2>${m.title}</h2><span class="cnt">${rows.length} eil.</span>
+      <button class="ghost" data-add="${m.key}">+ Eilutė</button></div>${body}</div>`;
+  }).join("");
+  renderSummary();
+}
+function renderSummary() {
+  const n = state.rows.filter(r => Number.isFinite(r.line) && r.a > 1 && r.b > 1).length;
+  $("sum").textContent = `${n} eil. · ${fileName()}.csv`;
+  $("preview").textContent = csvText();
+  $("save").disabled = $("copy").disabled = !n;
+}
+function renderThumbs() {
+  $("thumbs").innerHTML = images.map(im => `<div class="thumb"><img src="${im.url}" alt="${esc(im.file.name)}">
+    <span class="st ${im.cls || ""}">${esc(im.status)}</span>
+    <button class="x" data-rm="${im.id}" aria-label="Pašalinti nuotrauką" ${busy ? "disabled" : ""}>×</button></div>`).join("");
+  $("read").disabled = busy || !sample || !images.some(i => i.cls !== "ok");
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function note(text, cls = "") { $("readNote").textContent = text; $("readNote").className = "note " + cls; }
+
+// ---------- images ----------
+function addFiles(files) {
+  const ok = [...files].filter(f => /^image\/(jpeg|png|webp|gif)$/.test(f.type));
+  if (!ok.length) { if (files.length) note("Tinka tik JPG, PNG, WEBP ar GIF nuotraukos. iPhone HEIC pirma konvertuokite.", "err"); return; }
+  for (const f of ok) images.push({ id: ++uid, file: f, url: URL.createObjectURL(f), status: "Laukia", cls: "" });
+  note(sample ? "" : "Claude čia nepasiekiamas, todėl koeficientus įveskite ranka.", sample ? "" : "warn");
+  renderThumbs();
+}
+$("drop").addEventListener("click", () => $("file").click());
+$("drop").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } });
+$("file").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+$("drop").addEventListener("dragover", e => { e.preventDefault(); $("drop").classList.add("over"); });
+$("drop").addEventListener("dragleave", () => $("drop").classList.remove("over"));
+$("drop").addEventListener("drop", e => { e.preventDefault(); $("drop").classList.remove("over"); addFiles(e.dataTransfer.files); });
+document.addEventListener("paste", e => {
+  const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === "file").map(i => i.getAsFile()).filter(Boolean);
+  if (files.length) { e.preventDefault(); addFiles(files); }
+});
+$("thumbs").addEventListener("click", e => {
+  const id = +e.target.dataset.rm; if (!id) return;
+  const i = images.findIndex(x => x.id === id);
+  if (i >= 0) { URL.revokeObjectURL(images[i].url); images.splice(i, 1); renderThumbs(); }
+});
+
+// ---------- Claude ----------
+const ERR = {
+  not_granted: "Claude naudojimas šiam puslapiui neleistas.",
+  sampling_disabled: "Claude šiai paskyrai nepasiekiamas.",
+  images_unavailable: "Šiame lange nuotraukų siųsti negalima.",
+  rate_limited: "Per daug užklausų. Palaukite minutę ir spauskite „Nuskaityti“ dar kartą.",
+  image_rejected: "Nuotraukos nepavyko atidaryti. Pabandykite kitą failą.",
+  invalid_json: "Nepavyko atpažinti atsakymo. Bandykite dar kartą.",
+  refused: "Claude atsisakė skaityti šią nuotrauką.",
+  session_expired: "Prisijunkite iš naujo.",
+};
+const FATAL = ["not_granted", "sampling_disabled", "images_unavailable", "not_declared", "capability_disabled", "capability_removed"];
+
+async function readAll() {
+  if (busy || !sample) return;
+  const todo = images.filter(i => i.cls !== "ok");
+  if (!todo.length) return;
+  busy = true; $("stop").hidden = false; note("");
+  if (state.example) { state.rows = []; state.example = false; }
+  let total = 0, allWarns = [];
+  for (const im of todo) {
+    if (!busy) break;
+    im.status = "Skaitoma…"; im.cls = "busy"; renderThumbs();
+    ctl = new AbortController();
+    try {
+      const res = await sample.json(PROMPT(state.home, state.away), { images: [im.file], signal: ctl.signal });
+      if (!res || !Array.isArray(res.rows)) throw { code: "invalid_json" };
+      for (const k of ["home", "away", "bookmaker"]) if (!state[k] && res[k]) { state[k] = String(res[k]).trim(); $(k).value = state[k]; }
+      const { added, warns } = addRows(res.rows, im.file.name);
+      total += added; allWarns.push(...warns);
+      im.status = added ? `${added} eil.` + (res.notes ? ` · ${res.notes}` : "") : (res.notes || "Koeficientų nerasta");
+      im.cls = added ? "ok" : "err";
+      renderBoard(); save();
+    } catch (e) {
+      if (e && e.code === "cancelled") { im.status = "Sustabdyta"; im.cls = ""; break; }
+      im.status = ERR[e?.code] || "Nepavyko. Bandykite dar kartą."; im.cls = "err";
+      if (FATAL.includes(e?.code)) { note(im.status, "err"); if (e.code !== "rate_limited") sample = null; break; }
+      if (e?.code === "rate_limited") { note(im.status, "warn"); break; }
+    } finally { renderThumbs(); }
+  }
+  busy = false; ctl = null; $("stop").hidden = true; renderThumbs();
+  if (!$("readNote").textContent) note(`Rasta ${total} naujų eil.` + (allWarns.length ? ` Patikrinkite: ${allWarns.join("; ")}.` : " Prieš atsisiųsdami patikrinkite skaičius."), allWarns.length ? "warn" : "");
+}
+$("read").addEventListener("click", readAll);
+$("stop").addEventListener("click", () => { busy = false; ctl?.abort(); });
+
+// ---------- editing ----------
+$("board").addEventListener("change", e => {
+  const tr = e.target.closest("tr"); if (!tr || !e.target.dataset.f) return;
+  const r = state.rows.find(x => x.id === +tr.dataset.id); if (!r) return;
+  r[e.target.dataset.f] = num(e.target.value);
+  if (state.example) state.example = false;
+  if (!r.src || r.src === "pavyzdys") r.src = "ranka";
+  save(); renderBoard();
+});
+$("board").addEventListener("click", e => {
+  const del = +e.target.dataset.del, add = e.target.dataset.add;
+  if (del) { state.rows = state.rows.filter(r => r.id !== del); save(); renderBoard(); }
+  if (add) {
+    if (state.example) { state.rows = []; state.example = false; }
+    const r = { id: ++uid, market: add, line: NaN, a: NaN, b: NaN, src: "ranka" };
+    state.rows.push(r); renderBoard(); $("l-" + r.id)?.focus();
+  }
+});
+for (const k of ["home", "away", "bookmaker"]) $(k).addEventListener("input", e => { state[k] = e.target.value.trim(); save(); renderSummary(); });
+
+// ---------- export ----------
+let clearArmed = false;
+$("clear").addEventListener("click", () => {
+  if (!clearArmed) { clearArmed = true; $("clear").textContent = "Tikrai išvalyti?"; setTimeout(() => { clearArmed = false; $("clear").textContent = "Išvalyti"; }, 3000); return; }
+  clearArmed = false; $("clear").textContent = "Išvalyti";
+  state.rows = []; state.example = false; state.home = state.away = state.bookmaker = "";
+  ["home", "away", "bookmaker"].forEach(k => $(k).value = "");
+  images.forEach(i => URL.revokeObjectURL(i.url)); images.length = 0;
+  save(); renderBoard(); renderThumbs(); note("");
+});
+$("copy").addEventListener("click", () => {
+  const t = csvText();
+  navigator.clipboard.writeText(t).then(() => flash("copy", "Nukopijuota"), () => {
+    $("preview").closest("details").open = true;
+    const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($("preview")); sel.removeAllRanges(); sel.addRange(rg);
+    note("Nepavyko nukopijuoti automatiškai. CSV pažymėtas peržiūroje, nukopijuokite jį patys.", "warn");
+  });
+});
+$("save").addEventListener("click", async () => {
+  if (!downloads) { $("copy").click(); return; }
+  try { await downloads.save({ filename: fileName() + ".csv", data: csvText() }); flash("save", "Išsaugota"); }
+  catch (e) { if (e?.code !== "declined") note("Atsisiųsti nepavyko. Naudokite „Kopijuoti CSV“.", "warn"); }
+});
+function flash(id, text) { const b = $(id), t = b.textContent; b.textContent = text; setTimeout(() => b.textContent = t, 1500); }
+
+// ---------- start ----------
+load();
+for (const k of ["home", "away", "bookmaker"]) $(k).value = state[k] || "";
+renderBoard(); renderThumbs();
+(async () => {
+  const c = window.claude;
+  if (!c?.use) { note("Claude čia nepasiekiamas, todėl koeficientus įveskite ranka.", "warn"); return; }
+  const [s, d] = await Promise.all([c.use("sample").catch(() => null), c.use("downloads").catch(() => null)]);
+  downloads = d;
+  if (s) {
+    const lim = await s.limits().catch(() => null);
+    sample = lim?.images ? s : null;
+  }
+  if (!sample) note("Claude nuotraukų čia skaityti negali, todėl koeficientus įveskite ranka.", "warn");
+  renderThumbs();
+})();
+</script>

@@ -4,7 +4,13 @@ Bukmekerių koeficientų nuotraukas (ekranvaizdžius) paverčia CSV failu. Nuotr
 
 CSV formatas tinka projektui [event_probability](https://github.com/pgrigas-trainys/event_probability): failą galima įkelti mygtuku „Įkelti CSV“ arba paduoti `python/model.py`.
 
-## Įdiegimas
+## Programėlė
+
+`app/index.html` yra naršyklės programėlė. Joje įkeli ekranvaizdžius (nutempdamas, įklijuodamas Ctrl+V arba pasirinkdamas telefone), Claude nuskaito koeficientus, gautą lentelę gali pataisyti ir atsisiųsti CSV. Programėlė veikia kaip Claude artifact puslapis ir naudoja tavo Claude paskyrą, todėl API rakto nereikia. Jei Claude nepasiekiamas, koeficientus galima suvesti ranka.
+
+## Komandinė eilutė (Python)
+
+### Įdiegimas
 
 ```bash
 git clone https://github.com/pgrigas-trainys/odds_ocr
@@ -13,7 +19,7 @@ pip install -e .
 export ANTHROPIC_API_KEY=sk-ant-...      # raktą gausite https://console.anthropic.com
 ```
 
-## Naudojimas
+### Naudojimas
 
 ```bash
 # viena ar kelios nuotraukos, arba visas aplankas -> vienas CSV
